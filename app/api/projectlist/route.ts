@@ -15,30 +15,24 @@ export async function POST(request: Request) {
       category,
       websiteUrl,
     } = await request.json();
-    console.log("Received data:", {
+
+    const cleanedContributors = Array.isArray(contributors)
+      ? contributors.filter((c) => c.trim() !== "")
+      : [];
+
+    const newProject = new Project({
       title,
       description,
       imageUrl,
       fundingGoal,
       deadline,
       creatorName,
-      contributors,
-      category,
-      websiteUrl,
-    });
-    const newProject = new Project({
-      title,
-      description,
-      imageUrl: imageUrl,
-      fundingGoal,
-      deadline,
-      creatorName,
-      contributors,
+      contributors: cleanedContributors,
       category,
       websiteUrl,
     });
     await newProject.save();
-    return new Response(JSON.stringify(newProject), { status: 201 });
+    return new Response(JSON.stringify(newProject.toObject()), { status: 201 });
   } catch (error) {
     console.log("Server-error", error);
     return new Response(JSON.stringify({ error: "Server error" }), {
@@ -47,25 +41,15 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET(
-  request: Request,
-  { params }: { params: { title: string } }
-) {
+export async function GET(request: Request) {
   try {
     await dbConnect();
-    const { title } = params;
-    const project = await Project.findOne({ title });
-
-    if (!project) {
-      return new Response(JSON.stringify({ error: "Project not found" }), {
-        status: 404,
-      });
-    }
-
-    return new Response(JSON.stringify(project), { status: 200 });
+    const projects = await Project.find();
+    console.log("Fetched projects:", projects);
+    return new Response(JSON.stringify(projects), { status: 200 });
   } catch (error) {
     console.error("GET error:", error);
-    return new Response(JSON.stringify({ error: "Failed to fetch project" }), {
+    return new Response(JSON.stringify({ error: "Failed to fetch projects" }), {
       status: 500,
     });
   }

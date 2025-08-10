@@ -98,18 +98,6 @@ export default function ProjectForm() {
       });
       console.log("Transaction sent:", tx);
 
-      // Post to MongoDB
-      // const mongoRes = await axios.post("/api/projectlist", {
-      //   title: form.title,
-      //   description: form.description,
-      //   imageUrl: uploadUrl,
-      //   fundingGoal: fundingGoalEth,
-      //   deadline: deadlineUnix,
-      //   creatorName: form.creatorName,
-      //   contributors: form.contributors.split(",").map((c) => c.trim()),
-      //   category: form.category,
-      //   websiteUrl: form.websiteUrl,
-      // });
       const mongoPayload = {
         title: form.title,
         description: form.description,
