@@ -17,6 +17,7 @@
     "helia": "^5.5.0",
     "mongoose": "^8.17.0",
     "next": "15.3.3",
+    "pinata": "^2.4.9",
     "react": "^18",
     "react-dom": "^18",
     "uint8arrays": "^5.1.0",

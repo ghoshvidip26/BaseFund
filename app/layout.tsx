@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
 import Header from "./components/Headers";
+import { UploadProvider } from "./context/context";
 
 export const metadata: Metadata = {
   title: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME,
@@ -19,8 +20,10 @@ export default function RootLayout({
     <html lang="en">
       <body className="bg-background dark">
         <Providers>
-          <Header />
-          {children}
+          <UploadProvider>
+            <Header />
+            {children}
+          </UploadProvider>
         </Providers>
       </body>
     </html>

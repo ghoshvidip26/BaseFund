@@ -16,7 +16,7 @@ collections.Iterable = collections.abc.Iterable
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True, allow_headers=["Content-Type"])
 
 client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
@@ -27,11 +27,13 @@ def make_visual_prompt(user_description: str) -> str:
         "Use a clean, minimal, modern style."
     )
 
-@app.route('/generate', methods=['POST'])
+@app.route('/generate-image', methods=['POST'])
 def generate_image():
     try:
         data = request.get_json()
+        print("Received data:", data)
         user_description = data.get('description')
+        print("User description:", user_description)
         if not user_description:
             return jsonify({"error": "Missing 'description'"}), 400
 
@@ -44,6 +46,7 @@ def generate_image():
                 response_modalities=[Modality.TEXT, Modality.IMAGE]
             ),
         )
+        print("Response from Gemini:", response)
 
         image_base64 = None
         for part in response.candidates[0].content.parts:

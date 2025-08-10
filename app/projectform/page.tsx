@@ -4,8 +4,11 @@ import { useState } from "react";
 import Image from "next/image";
 import { useContractWrite } from "wagmi";
 import { contractABI } from "../contracts/abi";
+import axios from "axios";
+import { useUpload } from "../context/context"; // your custom upload hook
 
 export default function ProjectForm() {
+  const { uploadUrl } = useUpload();
   const contractAddress = process.env
     .NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`;
   const { writeContractAsync } = useContractWrite();
@@ -40,51 +43,94 @@ export default function ProjectForm() {
       newErrors.fundingGoal = "Enter a valid funding goal";
     if (!form.endDate) newErrors.endDate = "End date is required";
     if (!form.category) newErrors.category = "Select a category";
+    if (!imageUrl) newErrors.image = "Project image is required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const generateImageAndSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateForm()) return;
+  // Upload image file to Pinata
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+
     try {
       setLoading(true);
-      const res = await fetch("http://127.0.0.1:3001/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description: form.description }),
-      });
-      const data = await res.json();
-      const url = `data:image/png;base64,${data.base64}`;
-      setImageUrl(url);
 
-      await writeContractAsync({
+      const formData = new FormData();
+      formData.append("file", file);
+      const uploadRequest = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      console.log("Upload Request:", uploadRequest);
+      const response = await uploadRequest.json();
+      console.log("Upload Response:", response);
+      setImageUrl(response.url);
+    } catch (err) {
+      console.error("Error uploading file:", err);
+      alert("File upload failed. Please check console for details.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  console.log("Upload URL:", uploadUrl);
+  const submitProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    try {
+      setLoading(true);
+      console.log("Sending transaction to create project...");
+      const tx = await writeContractAsync({
         address: contractAddress,
         abi: contractABI,
         functionName: "createProject",
         args: [
-          url,
+          imageUrl,
           form.title,
           form.description,
           form.contributors.split(",").map((c) => c.trim()),
         ],
       });
+      console.log("Transaction sent:", tx);
 
-      await fetch("/api/projectlist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          imageUrl: url,
-          fundingGoal: parseFloat(form.fundingGoal),
-          minContribution: parseFloat(form.minContribution || "0"),
-        }),
+      const mongoRes = await axios.post("/api/projectlist", {
+        ...form,
+        imageUrl,
+        fundingGoal: parseFloat(form.fundingGoal),
+        minContribution: parseFloat(form.minContribution || "0"),
+        contributors: form.contributors.split(",").map((c) => c.trim()),
       });
 
+      console.log("Saved to MongoDB:", mongoRes.data);
       alert("Project created successfully!");
-    } catch (error) {
-      console.error(error);
-      alert("Error creating project");
+
+      setForm({
+        title: "",
+        description: "",
+        contributors: "",
+        fundingGoal: "",
+        endDate: "",
+        category: "",
+        creatorName: "",
+        websiteUrl: "",
+        minContribution: "",
+      });
+      setImageUrl(null);
+      setErrors({});
+    } catch (error: unknown) {
+      console.error("Error creating project:", error);
+      if (axios.isAxiosError(error) && error.response) {
+        console.error("Error response:", error.response.data);
+        alert(
+          `Error: ${error.response.data.error || "Failed to create project"}`
+        );
+      } else {
+        alert(
+          "Error creating project. Please check your connection and try again."
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -97,10 +143,39 @@ export default function ProjectForm() {
           Create a New Project
         </h2>
 
-        <form
-          onSubmit={generateImageAndSubmit}
-          className="grid gap-6 md:grid-cols-2"
-        >
+        <form onSubmit={submitProject} className="grid gap-6 md:grid-cols-2">
+          {/* File upload input */}
+          <div className="md:col-span-2 flex flex-col">
+            <label className="text-sm font-medium text-gray-700 mb-1">
+              Upload Project Image *
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleFileUpload}
+              className="p-2 border rounded-lg"
+              disabled={loading}
+            />
+            {errors.image && (
+              <p className="text-red-500 text-xs mt-1">{errors.image}</p>
+            )}
+          </div>
+
+          {/* Show uploaded image preview */}
+          {imageUrl && (
+            <div className="md:col-span-2 bg-gray-50 border rounded-lg p-4">
+              <p className="text-sm text-gray-600 mb-2">Image Preview:</p>
+              <Image
+                src={imageUrl}
+                alt="Uploaded project"
+                width={800}
+                height={400}
+                className="w-full rounded-lg"
+              />
+            </div>
+          )}
+
+          {/* The rest of your inputs */}
           {[
             {
               id: "title",
@@ -172,47 +247,6 @@ export default function ProjectForm() {
               )}
             </div>
           ))}
-
-          <div className="md:col-span-2">
-            <label className="text-sm font-medium text-gray-700 mb-1 block">
-              Category *
-            </label>
-            <select
-              value={form.category}
-              onChange={(e) => handleChange("category", e.target.value)}
-              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a category</option>
-              <option value="technology">Technology</option>
-              <option value="art">Art & Creative</option>
-              <option value="music">Music</option>
-              <option value="film">Film & Video</option>
-              <option value="games">Games</option>
-              <option value="education">Education</option>
-              <option value="health">Health & Wellness</option>
-              <option value="environment">Environment</option>
-              <option value="community">Community</option>
-              <option value="other">Other</option>
-            </select>
-            {errors.category && (
-              <p className="text-red-500 text-xs mt-1">{errors.category}</p>
-            )}
-          </div>
-
-          {imageUrl && (
-            <div className="md:col-span-2 bg-gray-50 border rounded-lg p-4">
-              <p className="text-sm text-gray-600 mb-2">
-                Generated Image Preview:
-              </p>
-              <Image
-                src={imageUrl}
-                alt="Generated project"
-                width={800}
-                height={400}
-                className="w-full rounded-lg"
-              />
-            </div>
-          )}
 
           <div className="md:col-span-2">
             <button
